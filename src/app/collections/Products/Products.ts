@@ -1,6 +1,13 @@
-
+import { BeforeChangeHook } from "payload/dist/collections/config/types";
 import { PRODUCT_CATEGORIES } from "../../../config/index";
 import { CollectionConfig } from "payload/types";
+import { Product } from "@/payload-types";
+import { stripe } from "../../../lib/stripe";
+
+const addUser: BeforeChangeHook<Product> = async ({ req, data }) => {
+  const user = req.user;
+  return { ...data, user: user.id };
+};
 
 export const Products: CollectionConfig = {
   slug: "products",
@@ -8,6 +15,41 @@ export const Products: CollectionConfig = {
     useAsTitle: "name",
   },
   access: {},
+  hooks: {
+    beforeChange: [
+      addUser,
+      async (args) => {
+        if (args.operation === "create") {
+          const data = args.data as Product;
+          const createProduct = await stripe.products.create({
+            name: data.name,
+            default_price_data: {
+              currency: "USD",
+              unit_amount: Math.round(data.price * 100),
+            },
+          });
+          const updated: Product = {
+            ...data,
+            stripeId: createProduct.id,
+            priceId: createProduct.default_price as string,
+          };
+          return updated;
+        } else if (args.operation === "update") {
+          const data = args.data as Product;
+          const updatedProduct = await stripe.products.update(data.stripeId!, {
+            name: data.name,
+            default_price: data.priceId!,
+          });
+          const updated: Product = {
+            ...data,
+            stripeId: updatedProduct.id,
+            priceId: updatedProduct.default_price as string,
+          };
+          return updated;
+        }
+      },
+    ],
+  },
   fields: [
     {
       name: "user",
@@ -79,48 +121,48 @@ export const Products: CollectionConfig = {
       ],
     },
     {
-        name: "priceId",
-        access: {
-            create: () => false,
-            read: () => false,
-            update: () => false
-        },
-        type: "text",
-        admin: {
-            hidden: true,
-        },
+      name: "priceId",
+      access: {
+        create: () => false,
+        read: () => false,
+        update: () => false,
+      },
+      type: "text",
+      admin: {
+        hidden: true,
+      },
     },
     {
-        name: "stripeId",
-        access: {
-            create: () => false,
-            read: () => false,
-            update: () => false
-        },
-        type: "text",
-        admin: {
-            hidden: true,
-        },
+      name: "stripeId",
+      access: {
+        create: () => false,
+        read: () => false,
+        update: () => false,
+      },
+      type: "text",
+      admin: {
+        hidden: true,
+      },
     },
     {
-        name: "images",
-        label: "Product images",
-        type: "array",
-        minRows: 1,
-        maxRows: 4,
-        labels: {
-            singular: "Image",
-            plural: "Images"
+      name: "images",
+      label: "Product images",
+      type: "array",
+      minRows: 1,
+      maxRows: 4,
+      labels: {
+        singular: "Image",
+        plural: "Images",
+      },
+      fields: [
+        {
+          name: "image",
+          type: "upload",
+          relationTo: "media",
+          required: true,
         },
-        fields: [
-            {
-                name: "image",
-                type: "upload",
-                relationTo: "media",
-                required: true
-            }
-        ],
-        required: true,
+      ],
+      required: true,
     },
   ],
 };
