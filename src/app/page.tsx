@@ -45,7 +45,6 @@ export default function Home() {
             <Button variant="ghost">Our quality promise &rarr;</Button>
           </div>
         </div>
-        {/* TODO : List products */}
         <ProductReel
           query={{ sort: "desc", limit: 4 }}
           title="Brand new"
